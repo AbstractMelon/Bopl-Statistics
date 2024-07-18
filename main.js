@@ -1,4 +1,6 @@
 import fetch from 'node-fetch';
+import axios from 'axios';
+import cheerio from 'cheerio';
 import cron from 'node-cron';
 import { Webhook, MessageBuilder } from 'discord-webhook-node';
 
@@ -6,7 +8,7 @@ const WEBHOOK_URL = 'https://discord.com/api/webhooks/1244414694475956288/1EVFhr
 const hook = new Webhook(WEBHOOK_URL);
 
 const STEAM_APP_ID = '1686940';
-const TWITCH_GAME_NAME = 'Bopl Battle';  
+const STEAMDB_URL = `https://steamdb.info/app/${STEAM_APP_ID}/charts/`;
 
 async function fetchBoplStats() {
     try {
@@ -36,11 +38,14 @@ async function fetchSteamStats() {
     const playerCountResponse = await fetch(`http://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=${STEAM_APP_ID}`);
     const playerCountData = await playerCountResponse.json();
 
-    const steam_top_sellers_rank = "Not Fetched";
-    const steam_followers = "Not Fetched";
+    const steamDBResponse = await axios.get(STEAMDB_URL);
+    const $ = cheerio.load(steamDBResponse.data);
+
+    const steam_top_sellers_rank = $('#app > div.content > div:nth-child(1) > div > div:nth-child(4) > div:nth-child(1) > div > div:nth-child(2)').text().trim() || "Not Fetched";
+    const steam_followers = $('#app > div.content > div:nth-child(1) > div > div:nth-child(2) > div:nth-child(1) > div > div:nth-child(2)').text().trim() || "Not Fetched";
 
     return {
-        current_players: playerCountData.response.player_count,
+        current_players: playerCountData.response.player_count || "Not Fetched",
         avg_monthly_players_down: "Not Fetched", 
         percentage_decrease: "Not Fetched", 
         steam_top_sellers_rank: steam_top_sellers_rank,
@@ -74,12 +79,10 @@ async function sendWebhook() {
         .setTitle(`BOPL STATS FOR ${timestamp}`)
         .addField('Current Players', stats.current_players.toString(), false)
         .addField('Avg. Monthly Players Down', `${stats.avg_monthly_players_down} (${stats.percentage_decrease}%)`, false)
-        .addField('Twitch Viewers', stats.twitch_viewers.toString(), false)
         .addField('Steam Top Sellers Rank', `#${stats.steam_top_sellers_rank}`, false)
         .addField('Steam Followers', stats.steam_followers.toString(), false)
         .addField('Positive Reviews', stats.positive_reviews.toString(), false)
         .addField('Negative Reviews', stats.negative_reviews.toString(), false)
-        // .setFooter('Bopl Player count stats for this week is attached below')
         .setFooter('Made with ❤️ by Abstractmelon & ReallyBadDev')
         .setColor('#00b0f4');
     
